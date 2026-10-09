@@ -39,6 +39,7 @@ class DatabaseService {
   private missionSubmissions: Map<string, MissionSubmission> = new Map();
   private auditLogs: AuditLog[] = [];
   private currentUserId: string | null = null;
+  private authErrorMessage: string | null = null;
   private listeners: Set<() => void> = new Set();
 
   constructor() {
@@ -49,6 +50,15 @@ class DatabaseService {
   public subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  public getAuthError(): string | null {
+    return this.authErrorMessage;
+  }
+
+  public clearAuthError(): void {
+    this.authErrorMessage = null;
+    this.notify();
   }
 
   private notify() {
@@ -200,6 +210,7 @@ class DatabaseService {
   }
 
   public async signInWithGoogle(simulatedEmail?: string): Promise<{ user?: UserProfile; error?: string }> {
+    this.authErrorMessage = null;
     // If Supabase is configured with real client:
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -208,7 +219,10 @@ class DatabaseService {
           redirectTo: window.location.origin,
         },
       });
-      if (error) return { error: error.message };
+      if (error) {
+        this.authErrorMessage = error.message;
+        return { error: error.message };
+      }
       return {};
     }
 
@@ -274,11 +288,14 @@ class DatabaseService {
     const eligibility = validateEmailEligibility(user.email);
     if (!eligibility.isEligible) {
       console.warn('Ineligible institutional domain:', user.email);
+      this.authErrorMessage = eligibility.reason || `Domain @${eligibility.domain} is not an authorized IIT Madras BS domain.`;
       await supabase?.auth.signOut();
       this.currentUserId = null;
       this.notify();
       return;
     }
+
+    this.authErrorMessage = null;
 
     // Remove any stale local accounts matching this email under temporary keys to ensure exactly 1 account
     for (const [id, prof] of this.profiles.entries()) {

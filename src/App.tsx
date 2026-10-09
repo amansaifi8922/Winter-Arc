@@ -17,7 +17,8 @@ import { MissionModal } from './components/modals/MissionModal';
 
 export function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(db.getCurrentUser());
-  const [currentView, setCurrentView] = useState<string>(currentUser ? 'dashboard' : 'landing');
+  const [currentView, setCurrentView] = useState<string>(currentUser ? (currentUser.role === 'admin' ? 'admin' : 'dashboard') : 'landing');
+  const [authError, setAuthError] = useState<string | null>(db.getAuthError());
   
   // Modals
   const [isLoginOpen, setIsLoginOpen] = useState(false);
@@ -30,13 +31,46 @@ export function App() {
   useEffect(() => {
     const unsubscribe = db.subscribe(() => {
       const user = db.getCurrentUser();
+      const err = db.getAuthError();
       setCurrentUser(user);
-      if (user && user.username === null) {
-        setIsUsernameSetupOpen(true);
+      setAuthError(err);
+
+      if (user) {
+        if (user.username === null) {
+          setIsUsernameSetupOpen(true);
+        } else {
+          // If user logs in while on landing, automatically direct to their view
+          setCurrentView((prev) => (prev === 'landing' ? (user.role === 'admin' ? 'admin' : 'dashboard') : prev));
+        }
+      } else {
+        // If logged out
+        setCurrentView((prev) => (prev !== 'leaderboard' ? 'landing' : 'leaderboard'));
       }
     });
 
     return () => unsubscribe();
+  }, []);
+
+  // Handle OAuth callback tokens or auth query in URL
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.search.includes('code='))) {
+      const timer = setTimeout(() => {
+        const user = db.getCurrentUser();
+        if (user) {
+          if (user.username === null) {
+            setIsUsernameSetupOpen(true);
+          } else {
+            setCurrentView(user.role === 'admin' ? 'admin' : 'dashboard');
+          }
+        }
+        // Clean URL hash/query without triggering page reload
+        if (window.location.hash || window.location.search) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
   }, []);
 
   const reminders = currentUser ? db.getRemindersForUser(currentUser.id) : [];
@@ -45,7 +79,8 @@ export function App() {
     if (isFirstTime) {
       setIsUsernameSetupOpen(true);
     } else {
-      setCurrentView('dashboard');
+      const user = db.getCurrentUser();
+      setCurrentView(user?.role === 'admin' ? 'admin' : 'dashboard');
     }
   };
 
@@ -79,6 +114,37 @@ export function App() {
           onOpenLogin={() => setIsLoginOpen(true)}
         />
 
+        {/* Institutional Domain Access Error Alert */}
+        {authError && (
+          <div className="max-w-2xl mx-auto px-4 mb-4">
+            <div className="bg-rose-950/80 border border-rose-500/40 backdrop-blur-xl p-4 rounded-2xl shadow-2xl flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-rose-500/20 text-rose-400 flex items-center justify-center shrink-0 mt-0.5">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1 text-xs">
+                <p className="font-bold text-rose-200 text-sm">Institutional Email Required</p>
+                <p className="text-rose-300/90 mt-1 leading-relaxed">{authError}</p>
+                <p className="text-slate-400 mt-2 font-mono text-[11px]">
+                  Please sign in using your official IIT Madras BS student Google account (e.g., ending with @study.iitm.ac.in, @ds.study.iitm.ac.in, or @es.study.iitm.ac.in).
+                </p>
+              </div>
+              <button 
+                onClick={() => {
+                  setAuthError(null);
+                  db.clearAuthError();
+                }} 
+                className="text-rose-400 hover:text-white p-1 rounded-lg hover:bg-rose-900/50 transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* In-Website Non-Intrusive Reminders */}
         {currentUser && currentView === 'dashboard' && (
           <ReminderBanner
@@ -91,8 +157,10 @@ export function App() {
         <main className="mt-2">
           {currentView === 'landing' && (
             <LandingPage
+              currentUser={currentUser}
               onOpenLogin={() => setIsLoginOpen(true)}
               onViewLeaderboard={() => setCurrentView('leaderboard')}
+              onGoToDashboard={() => setCurrentView(currentUser?.role === 'admin' ? 'admin' : 'dashboard')}
             />
           )}
 

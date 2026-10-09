@@ -1,4 +1,4 @@
-import { CHALLENGE_CONSTANTS } from './constants';
+import { CHALLENGE_CONSTANTS, PRIMARY_ADMIN_EMAILS } from './constants';
 import { PauseLogInterval } from '../types';
 
 const RESERVED_USERNAMES = new Set([
@@ -73,6 +73,10 @@ export function validateEmailEligibility(email: string): { isEligible: boolean; 
 
   const parts = email.trim().toLowerCase().split('@');
   const domain = parts[1];
+
+  if (PRIMARY_ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(email.trim().toLowerCase())) {
+    return { isEligible: true, domain };
+  }
 
   const allowedDomains = CHALLENGE_CONSTANTS.ALLOWED_DOMAINS;
   const isMatch = allowedDomains.some((allowed: string) => domain === allowed || domain.endsWith('.' + allowed));

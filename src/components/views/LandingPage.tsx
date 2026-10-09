@@ -1,12 +1,20 @@
 import React from 'react';
+import { UserProfile } from '../../types';
 import { CHALLENGE_CONSTANTS, SEED_CHALLENGE_WEEKS } from '../../lib/constants';
 
 interface LandingPageProps {
+  currentUser?: UserProfile | null;
   onOpenLogin: () => void;
   onViewLeaderboard: () => void;
+  onGoToDashboard: () => void;
 }
 
-export const LandingPage: React.FC<LandingPageProps> = ({ onOpenLogin, onViewLeaderboard }) => {
+export const LandingPage: React.FC<LandingPageProps> = ({
+  currentUser,
+  onOpenLogin,
+  onViewLeaderboard,
+  onGoToDashboard,
+}) => {
   return (
     <div className="relative overflow-hidden pb-24">
       
@@ -37,19 +45,31 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onOpenLogin, onViewLea
 
         {/* CTAs */}
         <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
-          <button
-            onClick={onOpenLogin}
-            className="w-full sm:w-auto px-8 py-4 bg-[#00E599] hover:bg-[#00E599]/90 text-slate-950 font-bold rounded-2xl text-sm transition-all shadow-xl shadow-[#00E599]/20 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2"
-          >
-            <span>Continue with Google</span>
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-            </svg>
-          </button>
+          {currentUser ? (
+            <button
+              onClick={onGoToDashboard}
+              className="w-full sm:w-auto px-8 py-4 bg-[#00E599] hover:bg-[#00E599]/90 text-slate-950 font-bold rounded-2xl text-sm transition-all shadow-xl shadow-[#00E599]/20 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>{currentUser.role === 'admin' ? 'Open Admin Control Center' : 'Go to My Dashboard'}</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={onOpenLogin}
+              className="w-full sm:w-auto px-8 py-4 bg-[#00E599] hover:bg-[#00E599]/90 text-slate-950 font-bold rounded-2xl text-sm transition-all shadow-xl shadow-[#00E599]/20 hover:scale-[1.02] active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <span>Continue with Google</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </button>
+          )}
 
           <button
             onClick={onViewLeaderboard}
-            className="w-full sm:w-auto px-6 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl text-sm border border-white/10 transition-all"
+            className="w-full sm:w-auto px-6 py-4 bg-white/5 hover:bg-white/10 text-white font-semibold rounded-2xl text-sm border border-white/10 transition-all cursor-pointer"
           >
             Explore Public Leaderboard
           </button>
