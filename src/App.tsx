@@ -36,6 +36,11 @@ export function App() {
       setAuthError(err);
 
       if (user) {
+        // Clean URL hash/query once user session is successfully verified
+        if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.search.includes('code='))) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+
         if (user.username === null) {
           setIsUsernameSetupOpen(true);
         } else {
@@ -51,25 +56,15 @@ export function App() {
     return () => unsubscribe();
   }, []);
 
-  // Handle OAuth callback tokens or auth query in URL
+  // Check on initial mount if user is already authenticated
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window.location.hash.includes('access_token') || window.location.search.includes('code='))) {
-      const timer = setTimeout(() => {
-        const user = db.getCurrentUser();
-        if (user) {
-          if (user.username === null) {
-            setIsUsernameSetupOpen(true);
-          } else {
-            setCurrentView(user.role === 'admin' ? 'admin' : 'dashboard');
-          }
-        }
-        // Clean URL hash/query without triggering page reload
-        if (window.location.hash || window.location.search) {
-          window.history.replaceState(null, '', window.location.pathname);
-        }
-      }, 300);
-
-      return () => clearTimeout(timer);
+    const user = db.getCurrentUser();
+    if (user) {
+      if (user.username === null) {
+        setIsUsernameSetupOpen(true);
+      } else {
+        setCurrentView(user.role === 'admin' ? 'admin' : 'dashboard');
+      }
     }
   }, []);
 
