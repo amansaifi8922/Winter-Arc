@@ -28,6 +28,10 @@ export const CHALLENGE_CONSTANTS = {
   }
 };
 
+export const PRIMARY_ADMIN_EMAILS: string[] = [
+  '25f3003617@ds.study.iitm.ac.in',
+];
+
 export const SEED_CHALLENGE_WEEKS: ChallengeWeek[] = [
   {
     id: 'w0000000-0000-0000-0000-000000000001',

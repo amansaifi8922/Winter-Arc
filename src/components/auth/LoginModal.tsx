@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { db } from '../../lib/database';
 import { CHALLENGE_CONSTANTS } from '../../lib/constants';
 import { validateEmailEligibility } from '../../lib/validation';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -20,17 +21,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
     setIsLoading(true);
     setErrorMsg(null);
 
-    const email = emailInput.trim() || 'student.bs@study.iitm.ac.in';
-    const eligibility = validateEmailEligibility(email);
-
-    if (!eligibility.isEligible) {
-      setIsLoading(false);
-      setErrorMsg(eligibility.reason || 'Email is not eligible.');
-      return;
+    const email = emailInput.trim();
+    if (email) {
+      const eligibility = validateEmailEligibility(email);
+      if (!eligibility.isEligible) {
+        setIsLoading(false);
+        setErrorMsg(eligibility.reason || 'Email is not eligible.');
+        return;
+      }
     }
 
     try {
-      const res = await db.signInWithGoogle(email);
+      const res = await db.signInWithGoogle(email || undefined);
       setIsLoading(false);
       if (res.error) {
         setErrorMsg(res.error);
@@ -80,6 +82,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
           <p className="text-xs text-slate-400 mt-1">
             Namdapha House • IIT Madras BS Degree
           </p>
+
+          {isSupabaseConfigured && (
+            <div className="mt-3 inline-flex items-center gap-1.5 py-1 px-3 bg-[#00E599]/10 border border-[#00E599]/30 rounded-full text-[10px] font-mono text-[#00E599]">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#00E599] animate-pulse"></span>
+              Supabase Connected: livyjifslexvodreuqnu
+            </div>
+          )}
         </div>
 
         {/* Primary Google Auth CTA */}
@@ -110,23 +119,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
             <span className="text-sm">Continue with Google</span>
           </button>
 
-          {/* Email input for verification demo & production fallback */}
-          <div className="pt-2">
-            <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
-              <span>Google Account Email (Institutional)</span>
-            </div>
-            <input
-              type="email"
-              value={emailInput}
-              onChange={(e) => {
-                setEmailInput(e.target.value);
-                setErrorMsg(null);
-              }}
-              placeholder="e.g. 21f1000000@ds.study.iitm.ac.in"
-              className="w-full bg-[#151821] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00E599]/60 transition-colors"
-            />
-          </div>
-
           {/* Error Message Box */}
           {errorMsg && (
             <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs leading-relaxed animate-in fade-in">
@@ -139,40 +131,45 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose, onLogin
             </div>
           )}
 
-          {/* Eligibility Domain Notice */}
-          <div className="bg-white/5 border border-white/5 rounded-2xl p-3 text-[11px] text-slate-400 space-y-1.5">
+          {/* Institutional Eligibility Notice */}
+          <div className="bg-white/5 border border-white/5 rounded-2xl p-3.5 text-[11px] text-slate-400 space-y-2">
             <div className="flex items-center gap-1.5 text-slate-300 font-semibold text-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-[#00E599]"></span>
-              Eligible Domains
+              Allowed Institutional Domains
             </div>
-            <p>
-              Only institutional Google accounts ending in:
+            <p className="leading-relaxed">
+              Sign in with your verified IIT Madras student Google account. Only the following domains are permitted:
             </p>
-            <div className="flex flex-wrap gap-1 font-mono text-[10px] text-[#00E599]">
+            <div className="flex flex-wrap gap-1.5 font-mono text-[10px] text-[#00E599]">
               {CHALLENGE_CONSTANTS.ALLOWED_DOMAINS.map((domain: string) => (
-                <button
+                <span
                   key={domain}
-                  type="button"
-                  onClick={() => handleQuickSelect(`student@${domain}`)}
-                  className="bg-[#00E599]/10 hover:bg-[#00E599]/20 px-2 py-0.5 rounded border border-[#00E599]/20 cursor-pointer transition-colors"
+                  className="bg-[#00E599]/10 px-2 py-0.5 rounded border border-[#00E599]/20"
                 >
                   @{domain}
-                </button>
+                </span>
               ))}
             </div>
           </div>
 
-          {/* Test Non-Eligible Email trigger for validation proof */}
-          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-            <span>Test Eligibility Rejection:</span>
-            <button
-              type="button"
-              onClick={() => handleQuickSelect('test_ineligible@gmail.com')}
-              className="text-rose-400 hover:text-rose-300 underline font-mono text-[10px]"
-            >
-              @gmail.com
-            </button>
-          </div>
+          {/* Offline prototype simulation input (only visible if Supabase is unconfigured) */}
+          {!isSupabaseConfigured && (
+            <div className="pt-2 border-t border-white/5">
+              <div className="flex items-center justify-between text-[11px] text-amber-400 mb-1.5 font-mono">
+                <span>[Offline Dev Mode Simulation]</span>
+              </div>
+              <input
+                type="email"
+                value={emailInput}
+                onChange={(e) => {
+                  setEmailInput(e.target.value);
+                  setErrorMsg(null);
+                }}
+                placeholder="student@study.iitm.ac.in"
+                className="w-full bg-[#151821] border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-[#00E599]/60"
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>

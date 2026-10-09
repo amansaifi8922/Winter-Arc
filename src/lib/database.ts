@@ -11,7 +11,7 @@ import {
   LeaderboardEntry,
   VerificationStatus,
 } from '../types';
-import { CHALLENGE_CONSTANTS, SEED_CHALLENGE_WEEKS } from './constants';
+import { CHALLENGE_CONSTANTS, SEED_CHALLENGE_WEEKS, PRIMARY_ADMIN_EMAILS } from './constants';
 import { SEED_PROFILES, SEED_MISSIONS, SAMPLE_EVIDENCE_IMAGE, SAMPLE_WORKOUT_IMAGE } from './mockData';
 import { getKolkataDateString, getChallengeWeekForDate } from './timezone';
 import { calculateAuthoritativeSessionDuration, validateUsername, validateEmailEligibility } from './validation';
@@ -43,6 +43,7 @@ class DatabaseService {
 
   constructor() {
     this.loadState();
+    this.initSupabaseAuth();
   }
 
   public subscribe(listener: () => void): () => void {
@@ -57,12 +58,40 @@ class DatabaseService {
 
   private loadState() {
     try {
+      if (isSupabaseConfigured) {
+        const mockPurged = localStorage.getItem('winter_arc_mock_purged_v2');
+        if (!mockPurged) {
+          localStorage.removeItem(STORAGE_KEYS.PROFILES);
+          localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+          localStorage.setItem('winter_arc_mock_purged_v2', 'true');
+        }
+      }
+
       // 1. Profiles
       const savedProfiles = localStorage.getItem(STORAGE_KEYS.PROFILES);
       if (savedProfiles) {
         const parsed: UserProfile[] = JSON.parse(savedProfiles);
-        parsed.forEach((p) => this.profiles.set(p.id, p));
-      } else {
+        // In live Supabase mode, purge mock personas (rohan_arc, ananya_ds, etc.)
+        const activeProfiles = isSupabaseConfigured
+          ? parsed.filter(
+              (p) =>
+                !p.id.startsWith('u_mock_') &&
+                !p.id.startsWith('u_rohan') &&
+                p.email !== 'rohan.k@ds.study.iitm.ac.in' &&
+                p.email !== 'ananya.m@ds.study.iitm.ac.in' &&
+                p.email !== 'vikram.s@es.study.iitm.ac.in' &&
+                p.email !== 'namdapha.coord@study.iitm.ac.in' &&
+                p.email !== 'admin.namdapha@study.iitm.ac.in' &&
+                p.email !== 'student.bs@study.iitm.ac.in'
+            )
+          : parsed;
+        activeProfiles.forEach((p) => {
+          if (PRIMARY_ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(p.email.toLowerCase())) {
+            p.role = 'admin';
+          }
+          this.profiles.set(p.id, p);
+        });
+      } else if (!isSupabaseConfigured) {
         SEED_PROFILES.forEach((p) => this.profiles.set(p.id, p));
       }
 
@@ -109,19 +138,23 @@ class DatabaseService {
         this.auditLogs = JSON.parse(savedLogs);
       }
 
-      // Current User
+      // Current User: Default to unauthenticated (null) when live Supabase is active
       const savedUser = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
       if (savedUser && this.profiles.has(savedUser)) {
         this.currentUserId = savedUser;
-      } else {
-        // Default to student rohan_arc for initial demonstration
+      } else if (!isSupabaseConfigured) {
         this.currentUserId = SEED_PROFILES[0].id;
+      } else {
+        this.currentUserId = null;
       }
     } catch {
-      // Fallback to seeds
-      SEED_PROFILES.forEach((p) => this.profiles.set(p.id, p));
-      SEED_MISSIONS.forEach((m) => this.missions.set(m.id, m));
-      this.currentUserId = SEED_PROFILES[0].id;
+      if (!isSupabaseConfigured) {
+        SEED_PROFILES.forEach((p) => this.profiles.set(p.id, p));
+        SEED_MISSIONS.forEach((m) => this.missions.set(m.id, m));
+        this.currentUserId = SEED_PROFILES[0].id;
+      } else {
+        this.currentUserId = null;
+      }
     }
   }
 
@@ -156,6 +189,9 @@ class DatabaseService {
   }
 
   public switchUser(userId: string): UserProfile {
+    if (isSupabaseConfigured) {
+      throw new Error('Unauthorized: Account switching is disabled.');
+    }
     const user = this.profiles.get(userId);
     if (!user) throw new Error('User not found');
     this.currentUserId = user.id;
@@ -164,8 +200,8 @@ class DatabaseService {
   }
 
   public async signInWithGoogle(simulatedEmail?: string): Promise<{ user?: UserProfile; error?: string }> {
-    // If Supabase is configured with real client and not simulated:
-    if (isSupabaseConfigured && supabase && !simulatedEmail) {
+    // If Supabase is configured with real client:
+    if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
@@ -176,16 +212,16 @@ class DatabaseService {
       return {};
     }
 
-    // Default simulation or direct email sign-in check
-    const emailToVerify = simulatedEmail || 'new.student@study.iitm.ac.in';
+    // Default simulation or direct email sign-in check (offline prototype only):
+    const emailToVerify = (simulatedEmail || 'new.student@study.iitm.ac.in').toLowerCase().trim();
     const eligibility = validateEmailEligibility(emailToVerify);
     if (!eligibility.isEligible) {
       return { error: eligibility.reason };
     }
 
-    // Check if user already exists
+    // Strictly enforce 1 account per email
     let existingUser = Array.from(this.profiles.values()).find(
-      (p) => p.email.toLowerCase() === emailToVerify.toLowerCase()
+      (p) => p.email.toLowerCase() === emailToVerify
     );
 
     if (!existingUser) {
@@ -209,7 +245,120 @@ class DatabaseService {
     return { user: existingUser };
   }
 
-  public signOut() {
+  private async initSupabaseAuth() {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        await this.handleSupabaseUser(session.user);
+      }
+
+      supabase.auth.onAuthStateChange(async (_event, session) => {
+        if (session?.user) {
+          await this.handleSupabaseUser(session.user);
+        } else if (_event === 'SIGNED_OUT') {
+          this.currentUserId = null;
+          this.notify();
+        }
+      });
+    } catch (err) {
+      console.warn('Supabase auth initialization notice:', err);
+    }
+  }
+
+  private async handleSupabaseUser(user: { id: string; email?: string }) {
+    if (!user.email) return;
+
+    // Check institutional email domain eligibility
+    const eligibility = validateEmailEligibility(user.email);
+    if (!eligibility.isEligible) {
+      console.warn('Ineligible institutional domain:', user.email);
+      await supabase?.auth.signOut();
+      this.currentUserId = null;
+      this.notify();
+      return;
+    }
+
+    // Remove any stale local accounts matching this email under temporary keys to ensure exactly 1 account
+    for (const [id, prof] of this.profiles.entries()) {
+      if (prof.email.toLowerCase() === user.email.toLowerCase() && id !== user.id) {
+        this.profiles.delete(id);
+      }
+    }
+
+    let profile: UserProfile | null = null;
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle();
+
+        if (data && !error) {
+          profile = data as UserProfile;
+        } else {
+          const newProf: UserProfile = {
+            id: user.id,
+            email: user.email,
+            username: null,
+            username_changes_count: 0,
+            role: 'student',
+            house: CHALLENGE_CONSTANTS.HOUSE,
+            bio: 'Winter Arc 2026 participant.',
+            is_active: true,
+            created_at: new Date().toISOString(),
+          };
+          const { data: inserted, error: insErr } = await supabase
+            .from('profiles')
+            .upsert(newProf)
+            .select()
+            .maybeSingle();
+
+          if (!insErr && inserted) {
+            profile = inserted as UserProfile;
+          } else {
+            profile = newProf;
+          }
+        }
+      } catch (e) {
+        console.warn('Supabase profile fetch notice:', e);
+      }
+    }
+
+    if (!profile) {
+      profile = {
+        id: user.id,
+        email: user.email,
+        username: null,
+        username_changes_count: 0,
+        role: 'student',
+        house: CHALLENGE_CONSTANTS.HOUSE,
+        bio: 'Winter Arc 2026 participant.',
+        is_active: true,
+        created_at: new Date().toISOString(),
+      };
+    }
+
+    if (PRIMARY_ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(user.email.toLowerCase())) {
+      profile.role = 'admin';
+    }
+
+    this.profiles.set(user.id, profile);
+    this.currentUserId = user.id;
+    this.notify();
+  }
+
+  public async signOut() {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.auth.signOut();
+      } catch (e) {
+        console.warn('Supabase sign out error:', e);
+      }
+    }
     this.currentUserId = null;
     this.notify();
   }
@@ -243,6 +392,21 @@ class DatabaseService {
       user.username_changes_count += 1;
     }
 
+    // Update in Supabase asynchronously
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('profiles')
+        .update({
+          username: user.username,
+          username_changes_count: user.username_changes_count,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.warn('Supabase profile sync warning:', error);
+        });
+    }
+
     this.logAuditEvent(
       user.id,
       'UPDATE_USERNAME',
@@ -262,6 +426,21 @@ class DatabaseService {
     if (!user) return;
     if (updates.bio !== undefined) user.bio = updates.bio;
     if (updates.avatar_url !== undefined) user.avatar_url = updates.avatar_url;
+
+    if (isSupabaseConfigured && supabase) {
+      supabase
+        .from('profiles')
+        .update({
+          ...(updates.bio !== undefined && { bio: updates.bio }),
+          ...(updates.avatar_url !== undefined && { avatar_url: updates.avatar_url }),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.warn('Supabase profile update warning:', error);
+        });
+    }
+
     this.notify();
   }
 
@@ -396,6 +575,25 @@ class DatabaseService {
     const goalReached = todayTotal >= CHALLENGE_CONSTANTS.DAILY_STUDY_TARGET_SECONDS;
 
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('study_sessions').insert({
+        id: session.id,
+        user_id: session.user_id,
+        challenge_id: session.challenge_id,
+        challenge_date: session.challenge_date,
+        started_at: session.started_at,
+        ended_at: session.ended_at,
+        duration_seconds: session.duration_seconds,
+        pause_log: session.pause_log,
+        total_paused_seconds: session.total_paused_seconds,
+        status: 'completed',
+        created_at: session.created_at,
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase study session sync notice:', error);
+      });
+    }
+
     return {
       session,
       todayTotalSeconds: todayTotal,
@@ -439,8 +637,26 @@ class DatabaseService {
     if (typeof file === 'string') {
       photoUrl = file;
     } else {
-      // Create local object URL for preview
       photoUrl = URL.createObjectURL(file);
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const filePath = `${userId}/${dateStr}_${Date.now()}.jpg`;
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('evidence-vault')
+            .upload(filePath, file, { upsert: true });
+
+          if (!uploadErr && uploadData) {
+            const { data: signed } = await supabase.storage
+              .from('evidence-vault')
+              .createSignedUrl(filePath, 60 * 60 * 24 * 365);
+            if (signed?.signedUrl) {
+              photoUrl = signed.signedUrl;
+            }
+          }
+        } catch (uploadNotice) {
+          console.warn('Storage upload notice:', uploadNotice);
+        }
+      }
     }
 
     const evidence: DailyStudyEvidence = {
@@ -457,6 +673,23 @@ class DatabaseService {
 
     this.studyEvidence.set(evidenceId, evidence);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('daily_study_evidence').upsert({
+        id: evidenceId,
+        user_id: userId,
+        challenge_id: CHALLENGE_CONSTANTS.ID,
+        challenge_date: dateStr,
+        storage_path: evidence.storage_path,
+        photo_url: evidence.photo_url,
+        verified_duration_seconds: evidence.verified_duration_seconds,
+        status: 'approved',
+        submitted_at: evidence.submitted_at,
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase daily study evidence sync notice:', error);
+      });
+    }
+
     return { evidence };
   }
 
@@ -487,6 +720,25 @@ class DatabaseService {
       photoUrl = file;
     } else {
       photoUrl = URL.createObjectURL(file);
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const filePath = `${userId}/${workoutId}.jpg`;
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('evidence-vault')
+            .upload(filePath, file, { upsert: true });
+
+          if (!uploadErr && uploadData) {
+            const { data: signed } = await supabase.storage
+              .from('evidence-vault')
+              .createSignedUrl(filePath, 60 * 60 * 24 * 365);
+            if (signed?.signedUrl) {
+              photoUrl = signed.signedUrl;
+            }
+          }
+        } catch (uploadNotice) {
+          console.warn('Workout storage notice:', uploadNotice);
+        }
+      }
     }
 
     const workout: WorkoutEntry = {
@@ -506,6 +758,26 @@ class DatabaseService {
 
     this.workouts.set(workoutId, workout);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('workout_entries').insert({
+        id: workoutId,
+        user_id: userId,
+        challenge_id: CHALLENGE_CONSTANTS.ID,
+        challenge_week_id: week.id,
+        workout_date: dateStr,
+        workout_type: workoutType,
+        duration_minutes: durationMinutes,
+        notes: notes || '',
+        storage_path: workout.storage_path,
+        photo_url: workout.photo_url,
+        status: 'approved',
+        created_at: workout.created_at,
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase workout sync notice:', error);
+      });
+    }
+
     return { workout };
   }
 
@@ -547,6 +819,25 @@ class DatabaseService {
       photoUrl = file;
     } else {
       photoUrl = URL.createObjectURL(file);
+      if (isSupabaseConfigured && supabase) {
+        try {
+          const filePath = `${userId}/${subId}.jpg`;
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('evidence-vault')
+            .upload(filePath, file, { upsert: true });
+
+          if (!uploadErr && uploadData) {
+            const { data: signed } = await supabase.storage
+              .from('evidence-vault')
+              .createSignedUrl(filePath, 60 * 60 * 24 * 365);
+            if (signed?.signedUrl) {
+              photoUrl = signed.signedUrl;
+            }
+          }
+        } catch (uploadNotice) {
+          console.warn('Mission storage notice:', uploadNotice);
+        }
+      }
     }
 
     const submission: MissionSubmission = {
@@ -563,6 +854,23 @@ class DatabaseService {
 
     this.missionSubmissions.set(subId, submission);
     this.notify();
+
+    if (isSupabaseConfigured && supabase) {
+      supabase.from('mission_submissions').insert({
+        id: subId,
+        mission_id: missionId,
+        user_id: userId,
+        challenge_id: CHALLENGE_CONSTANTS.ID,
+        storage_path: submission.storage_path,
+        photo_url: submission.photo_url,
+        student_notes: submission.student_notes,
+        status: 'approved',
+        submitted_at: submission.submitted_at,
+      }).then(({ error }) => {
+        if (error) console.warn('Supabase mission submission sync notice:', error);
+      });
+    }
+
     return { submission };
   }
 
@@ -737,6 +1045,15 @@ class DatabaseService {
     if (correctionType === 'update_role') {
       const oldRole = targetUser.role;
       targetUser.role = details.newRole;
+      if (isSupabaseConfigured && supabase) {
+        supabase
+          .from('profiles')
+          .update({ role: details.newRole, updated_at: new Date().toISOString() })
+          .eq('id', targetUserId)
+          .then(({ error }) => {
+            if (error) console.warn('Supabase role update error:', error);
+          });
+      }
       this.logAuditEvent(adminId, 'UPDATE_ROLE', 'profiles', targetUserId, { role: oldRole }, { role: targetUser.role }, reason);
     } else if (correctionType === 'adjust_duration') {
       const sessionId = details.sessionId;

@@ -483,3 +483,63 @@ BEGIN
         ON CONFLICT (challenge_id, week_number) DO NOTHING;
     END IF;
 END $$;
+
+-- 21. AUTOMATIC PROFILE PROVISIONING ON SIGNUP
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+    INSERT INTO public.profiles (id, email, username, role, house, bio, is_active)
+    VALUES (
+        new.id,
+        new.email,
+        null,
+        'student',
+        'Namdapha',
+        'Winter Arc 2026 participant.',
+        true
+    )
+    ON CONFLICT (id) DO UPDATE
+    SET email = EXCLUDED.email;
+
+    RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 22. STORAGE BUCKET CONFIGURATION (evidence-vault)
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES (
+    'evidence-vault',
+    'evidence-vault',
+    false,
+    10485760, -- 10MB
+    ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/heic']
+)
+ON CONFLICT (id) DO NOTHING;
+
+DO $$ BEGIN
+    CREATE POLICY "Users can upload own evidence" ON storage.objects
+        FOR INSERT WITH CHECK (
+            bucket_id = 'evidence-vault' AND
+            (storage.foldername(name))[1] = auth.uid()::text
+        );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+
+DO $$ BEGIN
+    CREATE POLICY "Users and staff can read evidence" ON storage.objects
+        FOR SELECT USING (
+            bucket_id = 'evidence-vault' AND (
+                (storage.foldername(name))[1] = auth.uid()::text OR
+                public.is_staff()
+            )
+        );
+EXCEPTION
+    WHEN duplicate_object THEN null;
+END $$;
+

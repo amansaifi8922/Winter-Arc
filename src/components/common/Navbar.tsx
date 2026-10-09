@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { UserProfile } from '../../types';
 import { db } from '../../lib/database';
+import { isSupabaseConfigured } from '../../lib/supabase';
 
 interface NavbarProps {
   currentUser: UserProfile | null;
@@ -15,8 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onNavigate,
   onOpenLogin,
 }) => {
-  const [showRoleSwitcher, setShowRoleSwitcher] = useState(false);
-  const allProfiles = db.getAllProfiles();
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
   const isStaff = currentUser?.role === 'coordinator' || currentUser?.role === 'admin';
 
@@ -42,6 +42,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="text-[10px] tracking-widest uppercase font-mono px-1.5 py-0.5 rounded bg-[#00E599]/10 text-[#00E599] border border-[#00E599]/20">
                 NAMDAPHA
               </span>
+              {isSupabaseConfigured && (
+                <span className="hidden sm:inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/25 px-1.5 py-0.5 rounded" title="Connected to Supabase project livyjifslexvodreuqnu">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  SUPABASE
+                </span>
+              )}
             </div>
             <p className="text-[11px] text-slate-400 font-mono">IIT Madras BS Community</p>
           </div>
@@ -127,11 +133,14 @@ export const Navbar: React.FC<NavbarProps> = ({
           )}
         </div>
 
-        {/* Right Area: User Pill / Auth / Switcher */}
+        {/* Right Area: User Pill / Auth */}
         <div className="flex items-center gap-2">
           {currentUser ? (
             <div className="relative">
-              <div className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full pl-2 pr-3 py-1 transition-colors">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-full pl-2 pr-3 py-1 transition-colors cursor-pointer"
+              >
                 {currentUser.avatar_url ? (
                   <img
                     src={currentUser.avatar_url}
@@ -140,92 +149,76 @@ export const Navbar: React.FC<NavbarProps> = ({
                   />
                 ) : (
                   <div className="w-6 h-6 rounded-full bg-[#00E599]/20 text-[#00E599] flex items-center justify-center text-xs font-bold font-mono">
-                    {currentUser.username?.[0]?.toUpperCase() || 'U'}
+                    {currentUser.username?.[0]?.toUpperCase() || currentUser.email[0]?.toUpperCase()}
                   </div>
                 )}
                 
-                <div 
-                  className="cursor-pointer"
-                  onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-white max-w-[100px] truncate">
-                      @{currentUser.username || 'setup_user'}
-                    </span>
-                    <span className={`text-[9px] uppercase font-mono px-1.5 py-0.2 rounded ${
-                      currentUser.role === 'admin' 
-                        ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
-                        : currentUser.role === 'coordinator'
-                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                        : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                    }`}>
-                      {currentUser.role}
-                    </span>
-                  </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-white max-w-[110px] truncate">
+                    @{currentUser.username || 'setup_user'}
+                  </span>
+                  <span className={`text-[9px] uppercase font-mono px-1.5 py-0.2 rounded ${
+                    currentUser.role === 'admin' 
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' 
+                      : currentUser.role === 'coordinator'
+                      ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  }`}>
+                    {currentUser.role}
+                  </span>
                 </div>
 
-                {/* Quick Persona Switcher Toggle */}
-                <button
-                  onClick={() => setShowRoleSwitcher(!showRoleSwitcher)}
-                  title="Switch Persona / Role for Testing"
-                  className="text-slate-400 hover:text-white p-1 rounded-full"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
-              </div>
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-              {/* Persona Switcher Dropdown */}
-              {showRoleSwitcher && (
-                <div className="absolute right-0 mt-2 w-72 bg-[#0e1017] border border-white/15 rounded-xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2">
-                  <div className="px-2 py-1.5 border-b border-white/10 mb-1">
-                    <p className="text-[11px] font-semibold text-slate-300">Switch Test Persona</p>
-                    <p className="text-[10px] text-slate-500">Test platform roles instantaneously</p>
+              {/* Secure Personal User Menu (Private Profile Only) */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-64 bg-[#0e1017] border border-white/15 rounded-2xl shadow-2xl p-3.5 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="pb-3 border-b border-white/10 mb-2">
+                    <p className="text-xs font-bold text-white truncate">
+                      @{currentUser.username || 'namdapha_user'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5">
+                      {currentUser.email}
+                    </p>
+                    <div className="mt-2.5 flex items-center gap-1.5">
+                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-[#00E599]/10 text-[#00E599] border border-[#00E599]/20">
+                        {currentUser.house || 'Namdapha'}
+                      </span>
+                      <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded ${
+                        currentUser.role === 'admin'
+                          ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          : currentUser.role === 'coordinator'
+                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                          : 'bg-slate-800 text-slate-300 border border-white/10'
+                      }`}>
+                        {currentUser.role}
+                      </span>
+                    </div>
                   </div>
-                  <div className="max-h-60 overflow-y-auto space-y-1">
-                    {allProfiles.map((p) => (
-                      <button
-                        key={p.id}
-                        onClick={() => {
-                          db.switchUser(p.id);
-                          setShowRoleSwitcher(false);
-                        }}
-                        className={`w-full text-left px-2.5 py-1.5 rounded-lg text-xs flex items-center justify-between transition-colors ${
-                          p.id === currentUser.id ? 'bg-[#00E599]/15 text-[#00E599]' : 'hover:bg-white/5 text-slate-300'
-                        }`}
-                      >
-                        <div className="truncate">
-                          <p className="font-semibold truncate">@{p.username || 'unnamed'}</p>
-                          <p className="text-[10px] text-slate-500 truncate">{p.email}</p>
-                        </div>
-                        <span className="text-[9px] uppercase font-mono px-1 py-0.5 rounded bg-white/5 text-slate-400">
-                          {p.role}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <div className="border-t border-white/10 mt-1 pt-1">
-                    <button
-                      onClick={() => {
-                        db.signOut();
-                        setShowRoleSwitcher(false);
-                      }}
-                      className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-1.5"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                      </svg>
-                      Sign Out
-                    </button>
-                  </div>
+
+                  <button
+                    onClick={() => {
+                      db.signOut();
+                      setShowUserMenu(false);
+                      onNavigate('landing');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-xl text-xs font-medium text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Sign Out
+                  </button>
                 </div>
               )}
             </div>
           ) : (
             <button
               onClick={onOpenLogin}
-              className="px-4 py-2 rounded-full bg-gradient-to-r from-[#00E599] to-[#38BDF8] text-black text-xs font-bold hover:opacity-90 transition-all shadow-lg shadow-[#00E599]/20"
+              className="px-4 py-2 rounded-full bg-gradient-to-r from-[#00E599] to-[#38BDF8] text-black text-xs font-bold hover:opacity-90 transition-all shadow-lg shadow-[#00E599]/20 cursor-pointer"
             >
               Sign In
             </button>
