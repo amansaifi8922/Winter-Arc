@@ -1,0 +1,137 @@
+import {
+  UserProfile,
+  Challenge,
+  WeeklyMission,
+  StudySession,
+  DailyStudyEvidence,
+  WorkoutEntry,
+  MissionSubmission,
+  PointTransaction,
+  AuditLog,
+  NotificationItem,
+} from '../types';
+import { CHALLENGE_CONSTANTS, SEED_CHALLENGE_WEEKS } from './constants';
+
+export const INITIAL_CHALLENGE: Challenge = {
+  id: CHALLENGE_CONSTANTS.ID,
+  slug: CHALLENGE_CONSTANTS.SLUG,
+  title: CHALLENGE_CONSTANTS.TITLE,
+  description: 'Namdapha House 83-Day Winter Arc Accountability & Self-Improvement Challenge.',
+  start_date: CHALLENGE_CONSTANTS.START_DATE,
+  end_date: CHALLENGE_CONSTANTS.END_DATE,
+  scoring_config: {
+    daily_study_goal_pts: CHALLENGE_CONSTANTS.POINTS.DAILY_STUDY_GOAL,
+    workout_pts: CHALLENGE_CONSTANTS.POINTS.WORKOUT,
+    weekly_mission_pts: CHALLENGE_CONSTANTS.POINTS.WEEKLY_MISSION,
+    study_streak_7_pts: CHALLENGE_CONSTANTS.POINTS.STUDY_STREAK_7,
+    study_streak_14_pts: CHALLENGE_CONSTANTS.POINTS.STUDY_STREAK_14,
+    study_streak_30_pts: CHALLENGE_CONSTANTS.POINTS.STUDY_STREAK_30,
+    daily_study_target_minutes: CHALLENGE_CONSTANTS.DAILY_STUDY_TARGET_MINUTES,
+    weekly_workout_target: CHALLENGE_CONSTANTS.WEEKLY_WORKOUT_TARGET,
+  },
+  is_active: true,
+};
+
+// Seed Profiles
+export const SEED_PROFILES: UserProfile[] = [
+  {
+    id: 'u0000000-0000-0000-0000-000000000001',
+    email: 'rohan.k@study.iitm.ac.in',
+    username: 'rohan_arc',
+    username_changes_count: 0,
+    role: 'student',
+    house: 'Namdapha',
+    avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+    bio: 'BS Data Science Year 2. Relentless consistency.',
+    is_active: true,
+    created_at: '2026-10-09T10:00:00Z',
+  },
+  {
+    id: 'u0000000-0000-0000-0000-000000000002',
+    email: 'ananya.m@ds.study.iitm.ac.in',
+    username: 'ananya_ds',
+    username_changes_count: 1,
+    role: 'student',
+    house: 'Namdapha',
+    avatar_url: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80',
+    bio: 'Machine learning, 5 AM running, 3 hours study daily.',
+    is_active: true,
+    created_at: '2026-10-09T11:15:00Z',
+  },
+  {
+    id: 'u0000000-0000-0000-0000-000000000003',
+    email: 'vikram.s@es.study.iitm.ac.in',
+    username: 'vikram_iron',
+    username_changes_count: 0,
+    role: 'student',
+    house: 'Namdapha',
+    avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&auto=format&fit=crop&q=80',
+    bio: 'Calisthenics & Deep work.',
+    is_active: true,
+    created_at: '2026-10-09T12:00:00Z',
+  },
+  {
+    id: 'u0000000-0000-0000-0000-000000000004',
+    email: 'namdapha.coord@study.iitm.ac.in',
+    username: 'coord_namdapha',
+    username_changes_count: 0,
+    role: 'coordinator',
+    house: 'Namdapha',
+    avatar_url: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&auto=format&fit=crop&q=80',
+    bio: 'Namdapha House Academic & Welfare Coordinator.',
+    is_active: true,
+    created_at: '2026-10-08T09:00:00Z',
+  },
+  {
+    id: 'u0000000-0000-0000-0000-000000000005',
+    email: 'admin.namdapha@study.iitm.ac.in',
+    username: 'namdapha_lead',
+    username_changes_count: 0,
+    role: 'admin',
+    house: 'Namdapha',
+    avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+    bio: 'Primary Administrator, Winter Arc Namdapha Platform.',
+    is_active: true,
+    created_at: '2026-10-08T08:00:00Z',
+  },
+];
+
+// Seed Missions
+export const SEED_MISSIONS: WeeklyMission[] = [
+  {
+    id: 'm0000000-0000-0000-0000-000000000001',
+    challenge_id: CHALLENGE_CONSTANTS.ID,
+    challenge_week_id: SEED_CHALLENGE_WEEKS[0].id,
+    week_number: 1,
+    title: 'Mission 1: The Sanctuary Setup & Distraction Audit',
+    description: 'Eliminate digital friction and prepare your environment for high-output 3-hour daily study sessions.',
+    instructions: '1. Put your smartphone into do-not-disturb mode.\n2. Clean your study desk completely.\n3. Take a photo of your focused desk setup with timer visible.',
+    criteria: 'Submit photo evidence of your distraction-free workspace with notes on what distractions you eliminated this week.',
+    evidence_instructions: 'Upload a clear photograph of your study setup and timer.',
+    point_value: 20,
+    deadline: '2026-10-16T23:59:59Z',
+    is_published: true,
+    created_by: 'u0000000-0000-0000-0000-000000000005',
+    created_at: '2026-10-09T10:00:00Z',
+  },
+  {
+    id: 'm0000000-0000-0000-0000-000000000002',
+    challenge_id: CHALLENGE_CONSTANTS.ID,
+    challenge_week_id: SEED_CHALLENGE_WEEKS[1].id,
+    week_number: 2,
+    title: 'Mission 2: Dawn Protocol (Sunrise Outdoor Run/Walk)',
+    description: 'Break lethargy by starting at least two days before 7:00 AM with sunlight exposure and cardiovascular exertion.',
+    instructions: 'Complete a 5K morning outdoor jog or power walk before 7:30 AM IST.',
+    criteria: 'Submit screenshot of tracking app or photo of sunrise outdoors.',
+    evidence_instructions: 'Upload morning outdoor photograph or GPS activity screenshot.',
+    point_value: 20,
+    deadline: '2026-10-23T23:59:59Z',
+    is_published: true,
+    created_by: 'u0000000-0000-0000-0000-000000000005',
+    created_at: '2026-10-09T10:00:00Z',
+  },
+];
+
+// Helper sample image URLs for reliable testing
+export const SAMPLE_EVIDENCE_IMAGE = 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=800&auto=format&fit=crop&q=80';
+export const SAMPLE_WORKOUT_IMAGE = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=800&auto=format&fit=crop&q=80';

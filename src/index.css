@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-primary: #08090c;
+    --bg-surface: #0f1117;
+    --bg-elevated: #151821;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-highlight: rgba(255, 255, 255, 0.16);
+    --accent-emerald: #00e599;
+    --accent-flame: #ff6b35;
+    --accent-ice: #38bdf8;
+    --accent-indigo: #6366f1;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+  }
+
+  body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    min-height: 100dvh;
+    margin: 0;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #08090c;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #1e222d;
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #334155;
+  }
+}
+
+/* Double-Bezel Hardware Architecture */
+.double-bezel {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1.5rem;
+  padding: 0.375rem;
+  box-shadow: 0 8px 32px -4px rgba(0, 0, 0, 0.5);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.double-bezel:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.double-bezel-inner {
+  background: #0e1017;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: calc(1.5rem - 0.375rem);
+  padding: 1.5rem;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Subtle glow badges */
+.glow-emerald {
+  box-shadow: 0 0 20px -4px rgba(0, 229, 153, 0.35);
+}
+
+.glow-flame {
+  box-shadow: 0 0 20px -4px rgba(255, 107, 53, 0.35);
+}
+
+.glow-ice {
+  box-shadow: 0 0 20px -4px rgba(56, 189, 248, 0.35);
+}
+
+/* Subtle grid texture */
+.arc-grid-bg {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
